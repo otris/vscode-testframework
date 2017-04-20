@@ -36,7 +36,7 @@
     "@types/mocha": "^2.2.32"
   },
   "dependencies": {
-    "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
+    "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git#39264b8d4bebdbb230c290090a14d9d15c8540a6",
     "shelljs": "^0.7.7",
     "xml2js": "^0.4.17"
   }
