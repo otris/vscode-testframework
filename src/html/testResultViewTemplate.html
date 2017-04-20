@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>%PAGE_TITLE%</title>
+
+        <style>
+            .testsuite {
+                font-size: 17px;
+                margin-bottom: 50px;
+            }
+
+            .testsuite span:first-child {
+                font-size: 20px;
+            }
+
+            .testcase {
+                margin-bottom: 20px;
+                margin-left: 20px;
+                font-size: 15px;
+            }
+
+            .testcase span:first-child {
+                font-size: 17px;
+                text-decoration: underline;
+                display: block;
+            }
+
+            .testcaseResult {
+                margin-left: 20px;
+            }
+
+            .error {
+                color: red;
+            }
+
+            .success {
+                color: green;
+            }
+        </style>
+    </head>
+
+    <body>
+        <textarea id="testResults" style="display: none;">%TEST_RESULTS%</textarea>
+        <div id="testResultContainer"></div>
+
+        <script type="text/javascript">
+            (function displayTestResults() {
+                var testsuites = JSON.parse(document.getElementById("testResults").value);
+                var htmlContent = "";
+
+                testsuites.forEach(function (testsuite) {
+                    var testsuiteWrapper = document.createElement("div");
+                    testsuiteWrapper.className = "testsuite";
+
+                    // Überschrift für die Testsuite
+                    var testsuiteHeader = document.createElement("span");
+                    testsuiteHeader.innerHTML = testsuite.name;
+                    testsuiteWrapper.appendChild(testsuiteHeader);
+
+                    testsuite.tests.forEach(function (testcase) {
+                        var testcaseWrapper = document.createElement("div");
+                        testcaseWrapper.className = "testcase";
+                        
+                        // Name des Testcases und Ausführungszeit (wenn vorhanden)
+                        var testcaseHeader = document.createElement("span");
+                        testcaseHeader.innerHTML = testcase.testName;
+
+                        if (typeof testcase.testingTime !== "undefined") {
+                            testcaseHeader.innerHTML += " (" + (parseInt(testcase.testingTime) / 100000) + "s.)";
+                        }
+
+                        testcaseWrapper.appendChild(testcaseHeader);
+
+                        // Wenn ein Fehler aufgetreten ist, anzeigen
+                        var testcaseStatus = document.createElement("span");
+                        testcaseStatus.className = "testcaseResult ";
+
+                        if (typeof testcase.error !== "undefined") {
+                            testcaseStatus.innerHTML = testcase.error.errorMessage; 
+                            testcaseStatus.className += "error";
+                        } else {
+                            testcaseStatus.innerHTML = "Erfolgreich";
+                            testcaseStatus.className += "success";
+                        }
+
+                        testcaseWrapper.appendChild(testcaseStatus);
+                        testsuiteWrapper.appendChild(testcaseWrapper);
+                    });
+
+                    document.getElementById("testResultContainer").appendChild(testsuiteWrapper);
+                });
+            })();
+        </script>
+    </body>
+</html>
