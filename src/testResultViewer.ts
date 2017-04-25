@@ -4,7 +4,7 @@ import HtmlViewer from "./htmlViewer";
 
 export default class TestResultViewer {
 
-    testResults: string;
+    private testResults: string;
 
     /**
      * Erzeugt ein Viewer zum Anzeigen der Testergebnisse
@@ -24,7 +24,7 @@ export default class TestResultViewer {
         if (!fs.existsSync(uri.fsPath)) {
             throw new Error("Unable to create TestResultViewer: The path doesn't exists: " + uri.path);
         }
-        
+
         return new TestResultViewer(fs.readFileSync(uri.fsPath));
     }
 
@@ -45,16 +45,16 @@ export default class TestResultViewer {
             let htmlContent = data.toString().replace("%PAGE_TITLE%", "Testergebnisse");
 
             // Testergebnisse parsen und in Platzhalter ersetzen
-            var parseString = require('xml2js').parseString;
-            parseString(this.testResults, function (err, results) {
+            let parseString = require("xml2js").parseString;
+            parseString(this.testResults, (error, results) => {
                 let testResults = results;
-                
-                if (err) {
-                    throw new Error("Unable to parse the test results: " + err);
+
+                if (error) {
+                    throw new Error("Unable to parse the test results: " + error);
                 }
 
                 // Der Parser erzeugt ein seltsames Objekt. Damit es später leichter verwendet werden kann, wird es hier umstrukturiert
-                var testsuites = [];
+                let testsuites = [];
 
                 if (testResults.hasOwnProperty("otrTest")) {
                     testResults = testResults.otrTest;
@@ -75,9 +75,9 @@ export default class TestResultViewer {
                 if (!Array.isArray(testResults)) {
                     throw new Error("Unable to parse the test results.");
                 }
-                console.log(JSON.stringify(testResults, null, "\t"));
+
                 let parsedTestResults = [];
-                testResults.forEach(function (testsuite) {
+                testResults.forEach((testsuite) => {
                     if (!testsuite.hasOwnProperty("TestCase") || !(testsuite.hasOwnProperty("$") && testsuite.$.hasOwnProperty("name"))) {
                         throw new Error("Unable to parse the test results");
                     }
@@ -93,8 +93,10 @@ export default class TestResultViewer {
                         tests: []
                     };
 
-                    testcases.forEach(function (testcase) {
-                        let testName, testingTime, error;
+                    testcases.forEach((testcase) => {
+                        let testName;
+                        let testingTime;
+                        let error;
 
                         if (!testcase.hasOwnProperty("$") || !testcase.$.hasOwnProperty("name")) {
                             throw new Error("Unable to parse the test results");
@@ -114,12 +116,12 @@ export default class TestResultViewer {
 
                                 throw new Error("Unable to parse the test results.");
                             }
-                            
+
                             error = {
                                 errorMessage: testcase.Error[0]._,
                                 file: testcase.Error[0].$.file,
                                 line: testcase.Error[0].$.line,
-                            }
+                            };
                         }
 
                         if (testcase.hasOwnProperty("TestingTime")) {
@@ -127,15 +129,15 @@ export default class TestResultViewer {
                         }
 
                         parsedTestSuite.tests.push({
-                            testName: testName,
-                            testingTime: testingTime,
-                            error: error
+                            testName,
+                            testingTime,
+                            error
                         });
                     });
 
                     parsedTestResults.push(parsedTestSuite);
                 });
-                
+
                 // Html-Datei in VSCode anzeigen
                 htmlContent = htmlContent.replace("%TEST_RESULTS%", JSON.stringify(parsedTestResults));
                 new HtmlViewer(htmlContent).viewHtml();

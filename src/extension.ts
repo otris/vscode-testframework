@@ -1,10 +1,10 @@
-'use strict';
-import * as vscode from 'vscode';
-import {DocumentsAPI} from './documentsAPI';
-import * as path from 'path';
-import * as fs from 'fs';
-import {Constants} from './constants';
+"use strict";
+import * as fs from "fs";
+import * as path from "path";
+import * as vscode from "vscode";
 import {Configuration} from "./configuration/configuration";
+import {Constants} from "./constants";
+import {DocumentsAPI} from "./documentsAPI";
 import TestResultViewer from "./testResultViewer";
 
 /**
@@ -63,14 +63,14 @@ function readDir(dir: string, fileList: string[] = []): string[] {
 
     let files = fs.readdirSync(dir);
     files.forEach(function(file) {
-        if (fs.statSync(path.join(dir,file)).isDirectory()) {
-            fileList = readDir(path.join(dir,file), fileList);
+        if (fs.statSync(path.join(dir, file)).isDirectory()) {
+            fileList = readDir(path.join(dir, file), fileList);
         } else if (file.endsWith(".js")) {
             fileList.push(path.join(dir, file));
         }
     });
 
-  return fileList;
+    return fileList;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -92,7 +92,7 @@ export function activate(context: vscode.ExtensionContext) {
         await uploadFolderRec("src/test");
         let testScripts = await vscode.workspace.findFiles("src/test/**/*.js", "**/node_modules/**");
         vscode.window.setStatusBarMessage(`Executing ${testScripts.length} test suites...`, Constants.DEFAULT_STATUSBAR_DELAY);
-        executeTests(testScripts).then(testResults => {
+        executeTests(testScripts).then((testResults) => {
             // create build directory (if not exists)
             let buildDir = vscode.workspace.rootPath + "/build";
 
@@ -117,8 +117,4 @@ export function activate(context: vscode.ExtensionContext) {
             });
         });
     }));
-}
-
-// this method is called when your extension is deactivated
-export function deactivate() {
 }

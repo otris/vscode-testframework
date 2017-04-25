@@ -4,14 +4,14 @@ import TestResultViewer from "./testResultViewer";
 
 export default class HtmlViewer {
 
-    htmlCode: string;
+    private htmlCode: string;
 
     /**
      * Erzeugt einen HtmlViewer zum Rendern von HTML-Inhalten
      * @param htmlCode {string} - Anzuzeigender HTML-Inhalt
      * @param addBasicHtmlWrapper [boolean=false] - Fügt den Standard-HTML-Wrapper hinzu
      */
-    constructor (htmlCode: string, addBasicHtmlWrapper: boolean = false) {
+    constructor(htmlCode: string, addBasicHtmlWrapper: boolean = false) {
         if (addBasicHtmlWrapper) {
             htmlCode = `\
                 <html>\
@@ -23,7 +23,7 @@ export default class HtmlViewer {
                     </body>\
                 </html>`;
         }
-        
+
         this.htmlCode = htmlCode;
     }
 
@@ -49,7 +49,7 @@ export default class HtmlViewer {
         let filePath = this.writeHtmlFile();
 
         // Datei in VSCode anzeigen (fullscreen)
-        vscode.commands.executeCommand('vscode.previewHtml', vscode.Uri.file(filePath), vscode.ViewColumn.One);
+        vscode.commands.executeCommand("vscode.previewHtml", vscode.Uri.file(filePath), vscode.ViewColumn.One);
     }
 
     /**

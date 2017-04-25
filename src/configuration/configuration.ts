@@ -1,29 +1,29 @@
 "use strict";
 import * as fs from "fs";
-import {Constants} from "./../constants";
 import * as vscode from "vscode";
+import {Constants} from "./../constants";
 
 export class Configuration {
 
     /**
      * These are the required inital configuration from the extension "vscode-documents-scripting"
      */
-    static InitialConfiguration = {
-        name: 'Launch Script on Server',
-        request: 'launch',
-        type: 'janus',
-        script: '',
-        username: '',
-        password: '',
-        principal: '',
-        host: 'localhost',
+    private static InitialConfiguration = {
+        name: "Launch Script on Server",
+        request: "launch",
+        type: "janus",
+        script: "",
+        username: "",
+        password: "",
+        principal: "",
+        host: "localhost",
         applicationPort: 11000,
         debuggerPort: 8089,
         stopOnEntry: false,
         log: {
-            fileName: '${workspaceRoot}/vscode-janus-debug-launch.log',
+            fileName: "${workspaceRoot}/vscode-janus-debug-launch.log",
             logLevel: {
-                default: 'Debug',
+                default: "Debug",
             },
         },
     };
@@ -31,20 +31,20 @@ export class Configuration {
     /**
      * These properties are required from the launch configuration
      */
-    static requiredConfigurationProperties = [
+    private static requiredConfigurationProperties = [
         "username",
         "password",
         "principal",
         "host"
     ];
 
-    static async CheckLaunchConfiguration(): Promise<void> {
+    private static async CheckLaunchConfiguration(): Promise<void> {
         if (!fs.existsSync(Constants.LaunchConfigurationPath)) {
             await this.CreateLaunchConfiguration();
         } else {
             // check if there is a configuration with request type "launch"
             let launchConfiguration = null;
-            
+
             try {
                 let launchConfigurationContent = fs.readFileSync(Constants.LaunchConfigurationPath).toString();
 
@@ -62,7 +62,7 @@ export class Configuration {
                     throw new Error(`Your launch configuration has an invalid structure: Expected property "configurations" to be an array, instead got ${typeof launchConfiguration.configurations}`);
                 }
 
-                var validConfigurations = launchConfiguration.configurations.filter(configuration => {
+                let validConfigurations = launchConfiguration.configurations.filter((configuration) => {
                     return configuration.request === "launch";
                 });
 
@@ -74,9 +74,9 @@ export class Configuration {
 
                 // this is need for later use
                 let indexOf = launchConfiguration.configurations.indexOf(validConfigurations[0]);
-                
+
                 // check if the required properties are set
-                let allPropertiesSet = this.requiredConfigurationProperties.every(property => {
+                let allPropertiesSet = this.requiredConfigurationProperties.every((property) => {
                     if (typeof validConfigurations[0][property] !== "string") {
                         return false;
                     } else {
@@ -98,7 +98,7 @@ export class Configuration {
         }
     }
 
-    static async CreateLaunchConfiguration(writeConfiguration: boolean = true): Promise<any> {
+    public static async CreateLaunchConfiguration(writeConfiguration: boolean = true): Promise<any> {
         let configuration = this.InitialConfiguration;
 
         // ask for each required property
@@ -109,7 +109,7 @@ export class Configuration {
             });
 
             configuration[property] = value;
-        };
+        }
 
         if (writeConfiguration) {
             let output = {

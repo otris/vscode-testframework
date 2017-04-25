@@ -1,10 +1,10 @@
 "use strict";
-import * as documentsAPI from 'node-documents-scripting';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as vscode from 'vscode';
-import {Constants} from './constants';
+import * as fs from "fs";
+import * as documentsAPI from "node-documents-scripting";
+import * as path from "path";
+import * as vscode from "vscode";
 import {Configuration} from "./configuration/configuration";
+import {Constants} from "./constants";
 
 export class DocumentsAPI {
 
@@ -12,10 +12,10 @@ export class DocumentsAPI {
      * Creates a LoginData object required for the authentication with the DOCUMENTS server
      * @returns The created LoginData-object
      */
-    static async CreateLoginData(): Promise<documentsAPI.LoginData> {
+    public static async CreateLoginData(): Promise<documentsAPI.LoginData> {
         // check if launch configuration exists
         await Configuration.CheckLaunchConfiguration();
-        
+
         // get the path where the launch.json is stored
         return new documentsAPI.LoginData(Constants.LaunchConfigurationPath);
     }
@@ -25,7 +25,7 @@ export class DocumentsAPI {
      * @param scriptPath - URI to the script on the local file system
      * @returns the script output
      */
-    static async ExecuteScript(scriptPath: vscode.Uri): Promise<string> {
+    public static async ExecuteScript(scriptPath: vscode.Uri): Promise<string> {
         if (!fs.existsSync(scriptPath.fsPath)) {
             throw new Error(`The script "${scriptPath.fsPath}" doesn't exists.`);
         }
@@ -40,7 +40,7 @@ export class DocumentsAPI {
         // execute script and catch the script output
         let loginData = await this.CreateLoginData();
         let executionResult = await documentsAPI.sdsSession(loginData, [scriptName], documentsAPI.runScript);
-        let output = executionResult.filter(result => {
+        let output = executionResult.filter((result) => {
             return result.startsWith("Return-Value");
         });
 
@@ -56,7 +56,7 @@ export class DocumentsAPI {
      * Uploads a script to the documents server
      * @param scriptPath - URI to the script on the local file system
      */
-    static async UploadScript(scriptPath: vscode.Uri) {
+    public static async UploadScript(scriptPath: vscode.Uri) {
         if (!fs.existsSync(scriptPath.fsPath)) {
             throw new Error(`The script "${scriptPath.fsPath}" doesn't exists.`);
         }
@@ -72,5 +72,4 @@ export class DocumentsAPI {
         let loginData = await this.CreateLoginData();
         await documentsAPI.sdsSession(loginData, [scriptName, fileContent], documentsAPI.uploadScript);
     }
-    
 }
