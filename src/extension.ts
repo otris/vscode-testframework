@@ -1,100 +1,121 @@
 'use strict';
 import * as vscode from 'vscode';
-import * as documentsAPI from 'node-documents-scripting';
+import {DocumentsAPI} from './documentsAPI';
 import * as path from 'path';
 import * as fs from 'fs';
+import {Constants} from './constants';
+import {Configuration} from "./configuration/configuration";
 import TestResultViewer from "./testResultViewer";
 
-async function executeScript(loginData: documentsAPI.LoginData, file: vscode.Uri): Promise<string> {
-    let testName = path.basename(file.fsPath, ".js");
-    vscode.window.setStatusBarMessage("Execute test " + testName);
-
-    let executionResult = await documentsAPI.sdsSession(loginData, [testName], documentsAPI.runScript);
-    let output = executionResult.filter(result => {
-        return result.startsWith("Return-Value");
-    });
-
-    if (output.length < 0) {
-        throw new Error("Something went wrong...");
-    }
-
-    return output[0];
-}
-
-async function executeTests(loginData: documentsAPI.LoginData, files: vscode.Uri[]): Promise<string> {
+/**
+ * Executes the passed testsuites
+ * @param files - Array with a set of URI's which referes to the local file
+ */
+async function executeTests(files: vscode.Uri[]): Promise<string> {
     let testResults = "";
 
-    // Kein forEach verwenden, da await sonst nicht funktioniert!    
+    // Don't use a for-each-loop, because the "await"-keyword doesn't work inside  
     for (let file of files) {
-        let output = await executeScript(loginData, file);
-        testResults += output.substr(13);
+        testResults += await DocumentsAPI.ExecuteScript(file);
     }
 
-    // Es sind nun eventuell mehrere Tags "<TestLog>" und "</TestLog>" enthalten, diese umschließen aber die Testergebnisse
-    testResults = testResults.split("<TestLog>").join("");
-    testResults = testResults.split("</TestLog>").join("");
+    // the final test result output has to be surrounded by "<TestLog>" and "</TestLog>"
+    // because we are executing the testsuites one after another, the tags can occur multiple times
+    testResults = testResults.replace(/<\/?TestLog>/g, "");
 
-    return "<TestLog>" + testResults + "</TestLog>";
+    return `<TestLog>${testResults}</TestLog>`;
+}
+
+/**
+ * Uploads a folder recursivly
+ * @param folderPath - Path to the local folder
+ */
+async function uploadFolderRec(folderPath: string) {
+    let files = [];
+
+    try {
+        files = readDir(folderPath);
+    } catch (error) {
+        if (error.code === "ENOENT") {
+            throw new Error(`Unable to upload folder "${folderPath}": The folder doesn't exists.`);
+        } else {
+            throw new Error(`Unkown error: ${error.message}`);
+        }
+    }
+
+    vscode.window.setStatusBarMessage(`Import ${files.length} files...`, Constants.DEFAULT_STATUSBAR_DELAY);
+    for (let file of files) {
+        await DocumentsAPI.UploadScript(vscode.Uri.file(file));
+    }
+}
+
+/**
+ * Reads a directory recursivly
+ * @param dir - Path to the local folder
+ * @param fileList - Array with a set of file paths
+ */
+function readDir(dir: string, fileList: string[] = []): string[] {
+    dir = path.normalize(dir);
+
+    if (!path.isAbsolute(dir)) {
+        dir = path.join(vscode.workspace.rootPath, dir);
+    }
+
+    let files = fs.readdirSync(dir);
+    files.forEach(function(file) {
+        if (fs.statSync(path.join(dir,file)).isDirectory()) {
+            fileList = readDir(path.join(dir,file), fileList);
+        } else if (file.endsWith(".js")) {
+            fileList.push(path.join(dir, file));
+        }
+    });
+
+  return fileList;
 }
 
 export function activate(context: vscode.ExtensionContext) {
 
     /**
-     * Kommando zum Ausführen der Tests
+     * Command for executing the defined tests
      */
     context.subscriptions.push(vscode.commands.registerCommand("extension.runTests", async () => {
-        // Login-Daten für das Documents-Plugin erzeugen
-        let launchConfigurationPath = path.normalize(vscode.workspace.rootPath + "/.vscode/launch.json");
-        let loginData = new documentsAPI.LoginData(launchConfigurationPath);
-        
-        // Imports (Testframework, Sourcen...)
-        vscode.window.setStatusBarMessage("Searching testframwork...");
-        let frameworkFiles = await vscode.workspace.findFiles("bower_components/otrTest/src/jscript/**/*.js", "**/node_modules/**");
-        vscode.window.setStatusBarMessage("Import " + frameworkFiles.length + " files...");
-        await frameworkFiles.forEach(async (file) => {
-            let fileContent = fs.readFileSync(file.fsPath).toString();
-            await documentsAPI.sdsSession(loginData, [path.parse(file.fsPath).name, fileContent], documentsAPI.uploadScript);
-        });
+        // import testframework
+        vscode.window.setStatusBarMessage("Upload testframwork...", Constants.DEFAULT_STATUSBAR_DELAY);
+        let testframeworkPath = path.normalize(require.resolve("otrTest") + "/../../jscript");
+        await uploadFolderRec(testframeworkPath);
 
-        // Sourcen importieren
-        vscode.window.setStatusBarMessage("Searching for the source files of the project...");
-        let sourceFiles = await vscode.workspace.findFiles("src/jscript/**/*.js", "**/node_modules/**");
-        vscode.window.setStatusBarMessage("Import " + sourceFiles.length + " files...");
-        await sourceFiles.forEach(async file => {
-            let fileContent = fs.readFileSync(file.fsPath).toString();
-            await documentsAPI.sdsSession(loginData, [path.parse(file.fsPath).name, fileContent], documentsAPI.uploadScript);
-        });
+        // import project source files
+        vscode.window.setStatusBarMessage("Upload projects source files...", Constants.DEFAULT_STATUSBAR_DELAY);
+        await uploadFolderRec("src/jscript");
 
-        // Testskripte ausführen
-        vscode.window.setStatusBarMessage("Searching for test scripts...");
+        // import and execute test scripts
+        await uploadFolderRec("src/test");
         let testScripts = await vscode.workspace.findFiles("src/test/**/*.js", "**/node_modules/**");
-        let testResults = executeTests(loginData, testScripts).then(testResults => {
-            // Buildverzeichnis erstellen (wenn nicht existiert)
+        vscode.window.setStatusBarMessage(`Executing ${testScripts.length} test suites...`, Constants.DEFAULT_STATUSBAR_DELAY);
+        executeTests(testScripts).then(testResults => {
+            // create build directory (if not exists)
             let buildDir = vscode.workspace.rootPath + "/build";
 
             try {
                 fs.mkdirSync(buildDir);
             } catch (error) {
-                if (error.code !== "EEXIST") { // Existiert schon
-                    throw error;
+                if (error.code !== "EEXIST") { // directory already exists
+                    throw new Error(`Unknown error: ${error.code}`);
                 }
             }
 
-            // Eine XML-Datei aus der Ausgabe erzeugen und im Buildverzeichnis ablegen
+            // write the test execution output inside a xml file in the build directory
             let testResultsFilePath = buildDir + "/testResults.xml";
             fs.writeFile(testResultsFilePath, testResults, (err) => {
                 if (err) {
                     throw err;
                 }
 
-                // Testergebnisse anzeigen
-                vscode.window.setStatusBarMessage("Render test results...", 5000);
+                // display the test results
+                vscode.window.setStatusBarMessage("Render test results...", Constants.DEFAULT_STATUSBAR_DELAY);
                 TestResultViewer.FromFile(vscode.Uri.file(testResultsFilePath)).displayTestResults();
             });
         });
-        
-        //     // ---------------- NUR WÄHREND DER ENTWICKLUNG -----------------
-        // let testResults = '<otrTest><TestLog><TestSuite name="otrUnitTestContainer"><TestCase name="otrUpgrade.createFileType"><TestingTime>257000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.NoData"><TestingTime>6000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.InvalidTitle"><TestingTime>21000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.FileTypeTwice"><TestingTime>281000</TestingTime></TestCase><TestCase name="otrUpgrade.attachAccessProfileToFileType"><TestingTime>353000</TestingTime></TestCase><TestCase name="otrUpgrade.attachAccessProfileToFileType.NoDataORWrongData"><TestingTime>423000</TestingTime></TestCase><TestCase name="otrUpgrade.attachUserAccessToFileType"><TestingTime>774000</TestingTime></TestCase><TestCase name="otrUpgrade.attachUserAccessToFileType.NoDataORWrongData"><TestingTime>400000</TestingTime></TestCase><TestCase name="otrUpgrade.attachMailTemplateToFileType"><TestingTime>357000</TestingTime></TestCase><TestCase name="otrUpgrade.attachMailTemplateToFileType.NoDataORWrongData"><TestingTime>1000</TestingTime></TestCase><TestCase name="otrUpgrade.attachHitListToFiletype"><TestingTime>450000</TestingTime></TestCase><TestCase name="otrUpgrade.attachHitListToFiletype.NoDataORWrongData"><TestingTime>2000</TestingTime></TestCase><TestCase name="otrUpgrade.setFileClassProtection"><TestingTime>324000</TestingTime></TestCase><TestCase name="otrUpgrade.isFileTypeReleased"><TestingTime>519000</TestingTime></TestCase><TestCase name="otrUpgrade.isFileTypeAvailable"><TestingTime>269000</TestingTime></TestCase><TestCase name="otrUpgrade.deleteProtectedFileFieldOnFileType"><TestingTime>312000</TestingTime></TestCase></TestSuite><TestSuite name="otrUnitTestContainer"><TestCase name="otrUpgrade.createFileType"><TestingTime>257000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.NoData"><TestingTime>6000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.InvalidTitle"><TestingTime>21000</TestingTime></TestCase><TestCase name="otrUpgrade.createFileType.FileTypeTwice"><TestingTime>281000</TestingTime></TestCase><TestCase name="otrUpgrade.attachAccessProfileToFileType"><TestingTime>353000</TestingTime></TestCase><TestCase name="otrUpgrade.attachAccessProfileToFileType.NoDataORWrongData"><TestingTime>423000</TestingTime></TestCase><TestCase name="otrUpgrade.attachUserAccessToFileType"><TestingTime>774000</TestingTime></TestCase><TestCase name="otrUpgrade.attachUserAccessToFileType.NoDataORWrongData"><TestingTime>400000</TestingTime></TestCase><TestCase name="otrUpgrade.attachMailTemplateToFileType"><TestingTime>357000</TestingTime></TestCase><TestCase name="otrUpgrade.attachMailTemplateToFileType.NoDataORWrongData"><TestingTime>1000</TestingTime></TestCase><TestCase name="otrUpgrade.attachHitListToFiletype"><TestingTime>450000</TestingTime></TestCase><TestCase name="otrUpgrade.attachHitListToFiletype.NoDataORWrongData"><TestingTime>2000</TestingTime></TestCase><TestCase name="otrUpgrade.setFileClassProtection"><TestingTime>324000</TestingTime></TestCase><TestCase name="otrUpgrade.isFileTypeReleased"><TestingTime>519000</TestingTime></TestCase><TestCase name="otrUpgrade.isFileTypeAvailable"><TestingTime>269000</TestingTime></TestCase><TestCase name="otrUpgrade.deleteProtectedFileFieldOnFileType"><TestingTime>312000</TestingTime></TestCase></TestSuite><TestSuite name="otrUnitTestContainer"><TestCase name="otrRiskAssessmentAPI.questionnaires.getQuestionnaireById"><Error file="test.otrUnitTestOutput.js" line="134"><![CDATA[otrRiskAssessmentAPI::questionnaires::createQuestionnaire: Assertion failed! Variable fields.otrConnectedContractType is not defined!]]></Error><TestingTime>0</TestingTime></TestCase><TestCase name="dummyTest"><TestingTime>312000</TestingTime></TestCase></TestSuite></TestLog></otrTest>';
     }));
 }
 
