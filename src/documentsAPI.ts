@@ -6,6 +6,14 @@ import * as vscode from "vscode";
 import {Configuration} from "./configuration/configuration";
 import {Constants} from "./constants";
 
+interface ScriptOutput {
+    scriptError: number,
+    scriptErrorMessage: string,
+    scriptWarnings: string,
+    returnType: string,
+    returnValue: string
+};
+
 export class DocumentsAPI {
 
     /**
@@ -30,21 +38,18 @@ export class DocumentsAPI {
         vscode.window.setStatusBarMessage(`Execute script ${scriptName}`, Constants.DEFAULT_STATUSBAR_DELAY);
 
         // execute script and catch the script output
-        let executionResult = await documentsAPI.sdsSession(loginData, [scriptName], documentsAPI.runScript);
-        let output = executionResult.filter((result) => {
-            return result.startsWith("Return-Value");
-        });
         if (loginData === null) {
             loginData = await this.CreateLoginData();
         }
 
-        if (output.length < 0) {
-            throw new Error(`Unable to get script output after executing script "${scriptName}"`);
+        let executionResult = await documentsAPI.sdsSession(loginData, [{name: scriptName}], documentsAPI.runScript);
+        let parsedOutput = this.ParseScriptOutput(executionResult[0].output as string);
 
+        if (typeof parsedOutput.scriptError === "undefined" || parsedOutput.scriptError !== 0) {
+            throw new Error(`An error occured while executing the script ${scriptPath.fsPath}: \n${parsedOutput.scriptErrorMessage}`);
         }
 
-        // output[0] = "Return-Value: ..."
-        return output[0].substr(13);
+        return parsedOutput.returnValue;
     }
 
     /**
@@ -85,8 +90,42 @@ export class DocumentsAPI {
         }
     }
 
+    private static ParseScriptOutput(output: string): ScriptOutput {
+        if (output === "") {
+            throw new Error("The structure of script output is invalid: The script output is empty.");
         }
 
+        let indexOf = output.indexOf("Script-Error");
+        if (indexOf === -1) {
+            throw new Error("The structure of the script output is invalid: Can't find the error tag.");
+        } else {
+            output = output.substr(indexOf);
+        }
 
+        // parse the output string
+        let splitted = output.split("\n");
+
+        if (splitted.length !== 5) {
+            throw new Error("The structure of the script output is invalid: Expected 5 elements inside the splitted output array, insted got: " + JSON.stringify(splitted));
+        }
+
+        let scriptOutput = {
+            scriptError: parseInt(splitted[0].replace("Script-Error:", "").trim()),
+            scriptErrorMessage: splitted[1].replace("Script-ErrorMsg:", "").trim(),
+            scriptWarnings: splitted[2].replace("Script-Warnings:", "").trim(),
+            returnType: splitted[3].replace("Return-Type:", "").trim(),
+            returnValue: splitted[4].replace("Return-Value:", "").trim()
+        };
+
+        // converting values (this is more correct for comparing later...)
+        for (let key in scriptOutput) {
+            if (scriptOutput.hasOwnProperty(key)) {
+                if (scriptOutput[key] === "") {
+                    scriptOutput[key] = undefined;
+                }
+            }
+        }
+
+        return scriptOutput;
     }
 }

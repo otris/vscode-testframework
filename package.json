@@ -37,7 +37,7 @@
     "vscode": "^1.0.0"
   },
   "dependencies": {
-    "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git#39264b8d4bebdbb230c290090a14d9d15c8540a6",
+    "node-documents-scripting": "git+https://github.com/otris/node-documents-scripting.git",
     "otrTest": "git+ssh://git@gitlab.otris.de:solutions/otrTest.git#v0.6.0",
     "shelljs": "^0.7.7",
     "xml2js": "^0.4.17"
