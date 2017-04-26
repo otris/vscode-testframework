@@ -46,7 +46,7 @@ export class DocumentsAPI {
         let parsedOutput = this.ParseScriptOutput(executionResult[0].output as string);
 
         if (typeof parsedOutput.scriptError === "undefined" || parsedOutput.scriptError !== 0) {
-            throw new Error(`An error occured while executing the script ${scriptPath.fsPath}: \n${parsedOutput.scriptErrorMessage}`);
+            throw new Error(`An error occured while executing the script "${path.relative(vscode.workspace.rootPath, scriptPath.fsPath)}": \n${parsedOutput.scriptErrorMessage}`);
         }
 
         return parsedOutput.returnValue;
