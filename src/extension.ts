@@ -76,28 +76,32 @@ function readDir(dir: string, fileList: string[] = []): string[] {
 
 export function activate(context: vscode.ExtensionContext) {
 
+    let outputChannel: vscode.OutputChannel = vscode.window.createOutputChannel("outputChannel");
+
     /**
      * Command for executing the defined tests
      */
     context.subscriptions.push(vscode.commands.registerCommand("extension.runTests", async () => {
-        // import testframework
-        vscode.window.setStatusBarMessage("Upload testframwork...", Constants.DEFAULT_STATUSBAR_DELAY);
-        let testframeworkPath = path.normalize(require.resolve("otrTest") + "/../../jscript");
-        vscode.window.setStatusBarMessage(`Upload directory ${testframeworkPath}`, Constants.DEFAULT_STATUSBAR_DELAY);
-        await uploadFolderRec(testframeworkPath);
+        try {
+            // import testframework
+            vscode.window.setStatusBarMessage("Upload testframwork...", Constants.DEFAULT_STATUSBAR_DELAY);
+            let testframeworkPath = path.normalize(require.resolve("otrTest") + "/../../jscript");
+            vscode.window.setStatusBarMessage(`Upload directory ${testframeworkPath}`, Constants.DEFAULT_STATUSBAR_DELAY);
+            await uploadFolderRec(testframeworkPath);
 
-        // import project source files
-        vscode.window.setStatusBarMessage("Upload projects source files...", Constants.DEFAULT_STATUSBAR_DELAY);
-        vscode.window.setStatusBarMessage(`Upload directory ./src/jscript`, Constants.DEFAULT_STATUSBAR_DELAY);
-        await uploadFolderRec("src/jscript");
+            // import project source files
+            vscode.window.setStatusBarMessage("Upload projects source files...", Constants.DEFAULT_STATUSBAR_DELAY);
+            vscode.window.setStatusBarMessage(`Upload directory ./src/jscript`, Constants.DEFAULT_STATUSBAR_DELAY);
+            await uploadFolderRec("src/jscript");
 
-        // import and execute test scripts
-        vscode.window.setStatusBarMessage(`Upload directory ./src/test`, Constants.DEFAULT_STATUSBAR_DELAY);
-        await uploadFolderRec("src/test");
+            // import and execute test scripts
+            vscode.window.setStatusBarMessage(`Upload directory ./src/test`, Constants.DEFAULT_STATUSBAR_DELAY);
+            await uploadFolderRec("src/test");
 
-        let testScripts = await vscode.workspace.findFiles("src/test/**/*.js", "**/node_modules/**");
-        vscode.window.setStatusBarMessage(`Executing ${testScripts.length} test suites...`, Constants.DEFAULT_STATUSBAR_DELAY);
-        executeTests(testScripts).then((testResults) => {
+            let testScripts = await vscode.workspace.findFiles("src/test/**/*.js", "**/node_modules/**");
+            vscode.window.setStatusBarMessage(`Executing ${testScripts.length} test suites...`, Constants.DEFAULT_STATUSBAR_DELAY);
+            let testResults = await executeTests(testScripts);
+
             // create build directory (if not exists)
             let buildDir = vscode.workspace.rootPath + "/build";
 
@@ -120,6 +124,11 @@ export function activate(context: vscode.ExtensionContext) {
                 vscode.window.setStatusBarMessage("Render test results...", Constants.DEFAULT_STATUSBAR_DELAY);
                 TestResultViewer.FromFile(vscode.Uri.file(testResultsFilePath)).displayTestResults();
             });
-        });
+        } catch (error) {
+            // print the exception to the output channel
+            outputChannel.appendLine(error.message);
+
+            vscode.window.showErrorMessage("An error occured while executing the test suites. See the output channel for more informations.");
+        }
     }));
 }
