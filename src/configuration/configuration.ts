@@ -38,7 +38,7 @@ export class Configuration {
         "host"
     ];
 
-    private static async CheckLaunchConfiguration(): Promise<void> {
+    public static async CheckLaunchConfiguration(): Promise<void> {
         if (!fs.existsSync(Constants.LaunchConfigurationPath)) {
             await this.CreateLaunchConfiguration();
         } else {

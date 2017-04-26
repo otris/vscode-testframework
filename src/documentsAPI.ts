@@ -25,27 +25,22 @@ export class DocumentsAPI {
      * @param scriptPath - URI to the script on the local file system
      * @returns the script output
      */
-    public static async ExecuteScript(scriptPath: vscode.Uri): Promise<string> {
-        if (!fs.existsSync(scriptPath.fsPath)) {
-            throw new Error(`The script "${scriptPath.fsPath}" doesn't exists.`);
-        }
-
-        if (!fs.statSync(scriptPath.fsPath).isFile()) {
-            throw new Error(`You need to pass a javascript file, not a folder.`);
-        }
-
+    public static async ExecuteScript(scriptPath: vscode.Uri, loginData: documentsAPI.LoginData = null): Promise<string> {
         let scriptName = path.basename(scriptPath.fsPath, ".js");
         vscode.window.setStatusBarMessage(`Execute script ${scriptName}`, Constants.DEFAULT_STATUSBAR_DELAY);
 
         // execute script and catch the script output
-        let loginData = await this.CreateLoginData();
         let executionResult = await documentsAPI.sdsSession(loginData, [scriptName], documentsAPI.runScript);
         let output = executionResult.filter((result) => {
             return result.startsWith("Return-Value");
         });
+        if (loginData === null) {
+            loginData = await this.CreateLoginData();
+        }
 
         if (output.length < 0) {
             throw new Error(`Unable to get script output after executing script "${scriptName}"`);
+
         }
 
         // output[0] = "Return-Value: ..."
@@ -56,20 +51,42 @@ export class DocumentsAPI {
      * Uploads a script to the documents server
      * @param scriptPath - URI to the script on the local file system
      */
-    public static async UploadScript(scriptPath: vscode.Uri) {
-        if (!fs.existsSync(scriptPath.fsPath)) {
-            throw new Error(`The script "${scriptPath.fsPath}" doesn't exists.`);
+    public static async UploadScript(scriptPath: string, loginData: documentsAPI.LoginData = null) {
+        let scriptName = path.basename(scriptPath, ".js");
+
+        if (loginData === null) {
+            loginData = await this.CreateLoginData();
         }
 
-        if (!fs.statSync(scriptPath.fsPath).isFile()) {
-            throw new Error(`You need to pass a javascript file, not a folder.`);
+        let fileContent = fs.readFileSync(scriptPath).toString();
+        await documentsAPI.sdsSession(loginData, [{name: scriptName, sourceCode: fileContent}], documentsAPI.uploadScript);
+    }
+
+    public static async UploadAllScripts(scripts: vscode.Uri[]) {
+        if (scripts.length > 0) {
+            vscode.window.setStatusBarMessage(`Upload ${scripts.length} script(s)`);
+
+            // the uploadAll-function expect an array of objects with the source code and the name of the scripts
+            let loginData = await this.CreateLoginData();
+
+            for (let script of scripts) {
+                let scriptPath: string;
+
+                if (script instanceof vscode.Uri) {
+                    scriptPath = script.fsPath;
+                } else {
+                    scriptPath = script as string;
+                }
+
+                await this.UploadScript(scriptPath, loginData);
+            }
+
+            vscode.window.setStatusBarMessage("");
+        }
+    }
+
         }
 
-        let scriptName = path.basename(scriptPath.fsPath, ".js");
-        vscode.window.setStatusBarMessage(`Upload script ${scriptName}`, Constants.DEFAULT_STATUSBAR_DELAY);
 
-        let fileContent = fs.readFileSync(scriptPath.fsPath).toString();
-        let loginData = await this.CreateLoginData();
-        await documentsAPI.sdsSession(loginData, [scriptName, fileContent], documentsAPI.uploadScript);
     }
 }

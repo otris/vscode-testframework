@@ -14,9 +14,12 @@ import TestResultViewer from "./testResultViewer";
 async function executeTests(files: vscode.Uri[]): Promise<string> {
     let testResults = "";
 
-    // Don't use a for-each-loop, because the "await"-keyword doesn't work inside  
+    // Don't use a for-each-loop, because the "await"-keyword doesn't work inside
+    // Because we execute a large amount of scripts create the login data here instead of
+    // create it every time in the execute function
+    let loginData = await DocumentsAPI.CreateLoginData();
     for (let file of files) {
-        testResults += await DocumentsAPI.ExecuteScript(file);
+        testResults += await DocumentsAPI.ExecuteScript(file, loginData);
     }
 
     // the final test result output has to be surrounded by "<TestLog>" and "</TestLog>"
@@ -43,10 +46,8 @@ async function uploadFolderRec(folderPath: string) {
         }
     }
 
-    vscode.window.setStatusBarMessage(`Import ${files.length} files...`, Constants.DEFAULT_STATUSBAR_DELAY);
-    for (let file of files) {
-        await DocumentsAPI.UploadScript(vscode.Uri.file(file));
-    }
+    // vscode.window.setStatusBarMessage(`Import ${files.length} files...`, Constants.DEFAULT_STATUSBAR_DELAY);
+    await DocumentsAPI.UploadAllScripts(files);
 }
 
 /**
@@ -82,14 +83,18 @@ export function activate(context: vscode.ExtensionContext) {
         // import testframework
         vscode.window.setStatusBarMessage("Upload testframwork...", Constants.DEFAULT_STATUSBAR_DELAY);
         let testframeworkPath = path.normalize(require.resolve("otrTest") + "/../../jscript");
+        vscode.window.setStatusBarMessage(`Upload directory ${testframeworkPath}`, Constants.DEFAULT_STATUSBAR_DELAY);
         await uploadFolderRec(testframeworkPath);
 
         // import project source files
         vscode.window.setStatusBarMessage("Upload projects source files...", Constants.DEFAULT_STATUSBAR_DELAY);
+        vscode.window.setStatusBarMessage(`Upload directory ./src/jscript`, Constants.DEFAULT_STATUSBAR_DELAY);
         await uploadFolderRec("src/jscript");
 
         // import and execute test scripts
+        vscode.window.setStatusBarMessage(`Upload directory ./src/test`, Constants.DEFAULT_STATUSBAR_DELAY);
         await uploadFolderRec("src/test");
+
         let testScripts = await vscode.workspace.findFiles("src/test/**/*.js", "**/node_modules/**");
         vscode.window.setStatusBarMessage(`Executing ${testScripts.length} test suites...`, Constants.DEFAULT_STATUSBAR_DELAY);
         executeTests(testScripts).then((testResults) => {
